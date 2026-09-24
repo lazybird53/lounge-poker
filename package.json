@@ -1,0 +1,1 @@
+{"name":"midnight-lounge","version":"0.1.0","private":true,"type":"module","scripts":{"start":"node server.mjs","test":"node --test test.mjs integration.mjs smoke.mjs client.test.mjs server-security.test.mjs"}}

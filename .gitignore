@@ -1,0 +1,22 @@
+# Local dependencies and secrets
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+
+# Browser sessions, recordings and generated evidence (keep test scripts)
+.playwright-cli/
+output/*
+!output/playwright/
+output/playwright/*
+!output/playwright/*.js
+test-results/
+playwright-report/
+coverage/
+
+# Local research history; source videos and reverse-engineering files live outside this repo
+REWORK.md
+VIDEO-REVIEW.md
+.DS_Store
+Thumbs.db
