@@ -10,4 +10,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test test.mjs integration.mjs smoke.mjs client.test.mjs server-security.test.mjs
+      - run: npm test

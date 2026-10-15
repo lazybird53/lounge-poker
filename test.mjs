@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {room,player,start,act as engineAct,view,allowed,tick} from './engine.mjs';
+import {botAction} from './bot.mjs';
+const botSnapshot=(extra={})=>({me:'a',candidate:'b',players:[{id:'a',color:0},{id:'b',color:1},{id:'c',color:2}],hand:['wild',1,'blank'],allowed:[0,1,2],...extra});
+test('봇은 후보 카드와 무지개를 보존하고 자기색 강제를 지킨다',()=>{
+ const s=botSnapshot({phase:'trade',task:{kind:'trade',actor:'a',target:'b',submitted:false}});
+ assert.equal(botAction(s,a=>a[0]).index,2);
+ assert.equal(botAction({...s,allowed:[0]},a=>a[0]).index,0);
+});
+test('봇은 공개된 교환 손패에서 무지개/후보 카드를 고른다',()=>{
+ const s=botSnapshot({phase:'special',task:{kind:'special',actor:'a',target:'b',stage:'receive'},visible:{id:'b',hand:['blank',2,1,'wild']}});
+ assert.equal(botAction(s,a=>a[0]).index,3);
+ s.visible.hand=['blank',2,1];assert.equal(botAction(s,a=>a[0]).index,2);
+});
+test('봇 투표는 후보색 우선, 없으면 무지개, 둘 다 없으면 빈 카드',()=>{
+ const s=botSnapshot({phase:'vote',voted:false});
+ assert.equal(botAction(s,a=>a[0]).index,1);
+ s.hand=[2,'wild','blank'];assert.equal(botAction(s,a=>a[0]).index,1);
+ s.hand=[2,0,'blank'];assert.equal(botAction(s,a=>a[0]).index,2);
+});
+test('봇은 후보색 플레이어와 거래하고 다른 사람 차례에는 입력하지 않는다',()=>{
+ const s=botSnapshot({phase:'trade',task:{kind:'trade',actor:'a'}});
+ assert.equal(botAction(s,a=>a[0]).target,'b');
+ s.task.actor='b';assert.equal(botAction(s,a=>a[0]),null);
+});
+test('동일한 관찰 정보에서는 숨겨진 정체와 손패가 달라도 같은 봇 판단',()=>{
+ const r=setup(),p=r.players[0];r.duck=1;r.fake=2;p.hand=[0,2,'blank'];
+ const before=view(r,p),decision=botAction(before,a=>a[0]);
+ r.players[2].hand=['wild','wild','wild'];r.stock.fill('wild');r.fake=3;
+ assert.deepEqual(botAction(view(r,p),a=>a[0]),decision);
+ assert.equal(before.duck,undefined);assert.equal(before.stock,undefined);
+});
 // Existing rule tests skip only the new presentation delay.
 function act(r,p,b){engineAct(r,p,b);if(r.phase==='reveal'||(r.phase==='voteReview'&&r.pendingVote))tick(r,Infinity);}
 function setup(n=4){const r=room(player('A'));while(r.players.length<n)r.players.push(player('P'+r.players.length));start(r);return r;}

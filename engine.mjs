@@ -1,4 +1,5 @@
 import {randomInt, randomUUID} from 'node:crypto';
+import {botAction} from './bot.mjs';
 export const actions=['오리','투표','감시','거래','창고'];
 export const colors=['코랄','민트','라벤더','골드','블루','로즈'];
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){let j=randomInt(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
@@ -69,7 +70,11 @@ export function act(r,p,b){
  if(b.gameId!==undefined&&(b.gameId!==r.gameId||b.round!==r.round))fail('이전 판의 입력이에요. 현재 화면에서 다시 선택해 주세요.');
  if(b.type==='lobby'){if(p.id!==r.host)fail('방장만 대기실로 돌아갈 수 있어요.');lobby(r,'방장이 대기실로 돌아왔어요. 인원을 변경하고 새 판을 시작할 수 있어요.');return;}
  if(b.type==='removeBot'){if(p.id!==r.host||r.phase!=='lobby')fail('대기실에서 방장만 봇을 뺄 수 있어요.');const bot=r.players.findLast(q=>q.bot);if(!bot)fail('제거할 봇이 없어요.');leave(r,bot);return;}
- if(b.type==='chat'){let msg=String(b.text||'').trim().slice(0,240);if(msg)r.chat.push({name:p.name,text:msg});r.chat=r.chat.slice(-60);return;}
+ if(b.type==='chat'){
+  if(typeof b.text!=='string'||!b.text.trim()||b.text.length>240)fail('채팅은 1~240자로 입력해 주세요.');
+  if(p.lastChat&&Date.now()-p.lastChat<500)fail('잠시 후 다시 보내 주세요.');
+  p.lastChat=Date.now();r.chat.push({name:p.name,text:b.text.trim()});r.chat=r.chat.slice(-60);return;
+ }
  if(b.type==='start'){if(p.id!==r.host||!['lobby','ended'].includes(r.phase))fail('방장만 시작할 수 있어요.');start(r);return;}
  if(b.type==='bot'){if(p.id!==r.host||r.phase!=='lobby'||r.players.length>=6)fail('대기실에서 방장만 봇을 추가할 수 있어요.');r.players.push(player(`연습 봇 ${r.players.length}`,true));return;}
  if(r.phase==='choose'){
@@ -136,16 +141,9 @@ export function view(r,p){
  return {code:r.code,gameId:r.gameId,notice:r.notice||'',host:r.host,me:p.id,phase:r.phase,round:r.round,candidate:active?candidate:null,hand:p.hand||[],allowed:p.hand?allowed(p):[],players:r.players.map((x,i)=>({id:x.id,name:x.name,color:i,bot:x.bot,connected:x.bot||Date.now()-x.lastSeen<CONNECTION_WARNING_MS,completed:waitingState(r,x)==='complete',thinking:waitingState(r,x)==='waiting',queued:waitingState(r,x)==='queued',ready:r.choices?.[x.id]!==undefined,action:r.phase==='choose'?null:r.choices?.[x.id]})),chosen:r.choices?.[p.id]??null,stockCount:t?.kind==='stock'&&t.actor===p.id&&t.take===undefined?r.stock.length:null,task:t?{kind:t.kind,actor:t.actor,target:t.kind==='special'&&t.actor!==p.id?undefined:t.target,stage:t.actor===p.id&&['stock','special'].includes(t.kind)?(t.kind==='special'&&!t.target?'target':t.take===undefined?'receive':'give'):null,submitted:!!t.offers&&t.offers[p.id]!==undefined}:null,voted:r.votes?.[p.id]!==undefined,visible:q?{id:q.id,name:q.name,hand:q.hand}:null,voteResult:r.voteResult,result:r.result,log:r.log,chat:r.chat};
 }
 export function bots(r){
- for(let k=0;k<1;k++){
-  let progressed=false;
-  for(const p of r.players.filter(x=>x.bot)){
-   let b=null,t=r.task;const pick=a=>a[randomInt(a.length)];
-   if(r.phase==='choose'&&r.choices[p.id]===undefined)b={type:'choose',action:pick([1,2,3,4])};
-   else if(r.phase==='vote'&&r.votes[p.id]===undefined){let c=p.color===r.duck?r.fake:r.duck;let i=p.hand.findIndex(x=>x===c||x==='wild');b={type:'card',index:i<0?0:i};}
-   else if(r.phase==='watch'&&r.choices[p.id]===2&&!r.watches[p.id])b={type:'target',target:pick(r.players.filter(x=>x.id!==p.id)).id};
-   else if(t?.kind==='trade'&&t.target&&(t.actor===p.id||(t.target===p.id&&t.offers?.[t.actor]!==undefined))&&t.offers?.[p.id]===undefined)b={type:'card',index:pick(allowed(p))};
-   else if(t?.actor===p.id){if(['watch','trade','special'].includes(t.kind)&&!t.target)b={type:'target',target:pick(r.players.filter(x=>x.id!==p.id)).id};else if(['stock','special'].includes(t.kind)){b=t.take===undefined?{type:'take',index:t.kind==='stock'?randomInt(r.stock.length):0}:{type:'card',index:pick(allowed(p))};}}
-   if(b){act(r,p,b);return;}
-  }if(!progressed)break;
+ const pick=a=>a[randomInt(a.length)];
+ // Shuffle who gets to respond first, not the engine's submitted-action order.
+ for(const p of shuffle(r.players.filter(x=>x.bot))){
+  const b=botAction(view(r,p),pick);if(b){act(r,p,b);return;}
  }
 }

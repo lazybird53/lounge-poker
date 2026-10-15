@@ -11,6 +11,7 @@ output/*
 !output/playwright/
 output/playwright/*
 !output/playwright/*.js
+!output/playwright/voice.config.json
 test-results/
 playwright-report/
 coverage/

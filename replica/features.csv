@@ -1,0 +1,5 @@
+feature,area,priority,original,clone,notes
+공개 텍스트 채팅,communication,must,unknown,yes,기존 구현 개선; 실패 초안 유지
+음성 참가와 음소거,communication,must,unknown,partial,로컬 가상 마이크 6인 검증; 외부망 실기기 미검증
+방별 통신 격리,security,must,unknown,yes,인증 및 세션 검사 테스트
+음성 외부망 TURN,communication,should,unknown,partial,설정 지원; 서비스 미구성

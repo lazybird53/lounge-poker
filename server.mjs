@@ -1,6 +1,7 @@
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {randomBytes} from 'node:crypto';
+import {voice} from './voice.mjs';
 import {room,player,act,view,tick,bots,leave,expireDisconnected} from './engine.mjs';
 const rooms=new Map();
 const server=http.createServer(async(req,res)=>{
@@ -18,11 +19,12 @@ const server=http.createServer(async(req,res)=>{
    }
    const r=rooms.get(url.searchParams.get('code'));const p=r?.players.find(x=>x.token===req.headers.authorization?.replace('Bearer ',''));if(!p)return json(401,{error:'방을 찾을 수 없어요. 새로 참가해 주세요.'});
    if(url.pathname==='/api/leave'&&req.method==='POST'){leave(r,p);if(!r.players.some(q=>!q.bot))rooms.delete(r.code);return json(200,{left:true});}
+   if(url.pathname==='/api/voice'&&req.method==='POST')return json(200,{...voice(r,p,b),...(b.type==='join'?{iceServers:JSON.parse(process.env.VOICE_ICE_SERVERS||'[{"urls":"stun:stun.l.google.com:19302"}]')}:{} )});
    if(url.pathname==='/api/action'&&req.method==='POST'){p.lastSeen=Date.now();act(r,p,b);}else if(url.pathname!=='/api/state'||req.method!=='GET')return json(404,{error:'없는 요청이에요.'});
    p.lastSeen=Date.now();
    r.updated=Date.now();return json(200,view(r,p));
   }
-  const files={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/card-display.mjs':'card-display.mjs','/table-art.mjs':'table-art.mjs'};const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}
+  const files={'/':'index.html','/app.js':'app.js','/voice.js':'voice.js','/style.css':'style.css','/card-display.mjs':'card-display.mjs','/table-art.mjs':'table-art.mjs'};const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}
   const content=await readFile(new URL(`./public/${file}`,import.meta.url));
   res.writeHead(200,{'Content-Type':(file.endsWith('.js')||file.endsWith('.mjs'))?'text/javascript':file.endsWith('.css')?'text/css':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'});res.end(content);
  }catch(e){json(400,{error:e.message});}

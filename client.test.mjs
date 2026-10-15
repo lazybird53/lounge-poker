@@ -6,23 +6,36 @@ import {orderedCards} from './public/card-display.mjs';
 import {gooseArt,actionArt} from './public/table-art.mjs';
 
 const source=await readFile(new URL('./public/app.js',import.meta.url),'utf8');
-function harness(){
+function harness(saved=null){
  const nodes=new Map(),pending=[],scrolls=[];
  const node=selector=>{
   if(!nodes.has(selector))nodes.set(selector,{value:'',style:{},dataset:{},focus(){},setSelectionRange(){}});
   return nodes.get(selector);
  };
  const context=vm.createContext({
-  orderedCards,gooseArt,actionArt,AbortSignal,confirm:()=>true,
+  orderedCards,gooseArt,actionArt,AbortSignal,createVoice:()=>({sync(){},stop(){}}),confirm:()=>true,
   document:{querySelector:node,querySelectorAll:()=>[],activeElement:{}},
-  sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},
+  sessionStorage:{getItem:key=>key==='lounge'?saved:null,setItem(){},removeItem(){}},
   window:{scrollTo(...args){scrolls.push(args);}},navigator:{},setInterval(){},setTimeout(){},clearTimeout(){},
   fetch:()=>new Promise(resolve=>pending.push(data=>resolve({ok:true,json:async()=>data}))),
  });
- vm.runInContext(source.replace(/^import .*\n/gm,'')+'\nglobalThis.client={send,refresh,leaveRoom,get state(){return state},setAuth(value){auth=value}};',context);
+ vm.runInContext(source.replace(/^import .*\n/gm,'')+'\nglobalThis.client={send,sendChat,refresh,leaveRoom,get state(){return state},setAuth(value){auth=value}};',context);
  context.client.setAuth({code:'ABCDEF',token:'test'});
- return {client:context.client,pending,scrolls,get html(){return node('#app').innerHTML}};
+ return {client:context.client,pending,scrolls,setChat(text){node('#chatInput').value=text;},get html(){return node('#app').innerHTML}};
 }
+test('손상되거나 오래된 저장 세션도 빈 화면 대신 참가 화면으로 복구한다',()=>{
+ for(const saved of ['{','[]','{"code":"ABCDEF"}','{"code":12,"token":"test"}']){
+  const h=harness(saved);assert.match(h.html,/새로운 테이블 만들기/);assert.equal(h.pending.length,0);
+ }
+});
+test('이전 방의 늦은 채팅 응답이 새 방의 전송 잠금을 풀지 않는다',async()=>{
+ const h=harness();h.setChat('이전 방 메시지');const old=h.client.sendChat();
+ h.client.setAuth({code:'FEDCBA',token:'new'});h.setChat('새 방 메시지');const current=h.client.sendChat();
+ assert.equal(h.pending.length,2);h.pending[0]({});await old;
+ h.setChat('다음 메시지');await h.client.sendChat();assert.equal(h.pending.length,2);
+ h.pending[1]({});await current;
+ const next=h.client.sendChat();assert.equal(h.pending.length,3);h.pending[2]({});await next;
+});
 const snapshot=phase=>({phase,players:[],chat:[],log:[],hand:[],allowed:[],round:1,chosen:null});
 test('종료 때만 확정된 승리 참가자를 표시하고 재시작 시 제거한다',async()=>{
  const h=harness(),players=[{id:'a',name:'거위 A',color:0},{id:'b',name:'오리 B',color:1}];

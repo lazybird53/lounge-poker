@@ -30,6 +30,12 @@ test('HTTP 인증·교차 출처·시작 후 참가 경계를 거부함',{timeou
   }
   response=await post(`action?code=${host.code}`,{type:'start'},{Authorization:'Bearer '+host.token});
   assert.equal(response.status,200);
+  response=await post(`voice?code=${host.code}`,{type:'join',session:'host'},{Authorization:'Bearer invalid'});assert.equal(response.status,401);
+  response=await post(`voice?code=${host.code}`,{type:'join',session:'host'},{Authorization:'Bearer '+host.token});assert.equal(response.status,200);
+  const vh=await response.json();assert.ok(vh.iceServers);assert.equal(vh.peers.length,1);assert.equal(vh.hand,undefined);
+  const other=await (await post('create',{name:'Other room'})).json();
+  response=await post(`voice?code=${other.code}`,{type:'join',session:'host'},{Authorization:'Bearer '+host.token});assert.equal(response.status,401);
+  response=await post(`voice?code=${host.code}`,{type:'poll',session:'host'},{Authorization:'Bearer '+host.token,Origin:'https://attacker.example'});assert.equal(response.status,403);
   response=await post('join',{name:'Late guest',code:host.code});
   assert.equal(response.status,400);
   assert.match((await response.json()).error,/참가할 수 있는 대기실이 아니에요/);
